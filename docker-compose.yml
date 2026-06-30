@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: 'postgres:17'
+    container_name: 'autoapply-postgres'
+    environment:
+      - 'POSTGRES_DB=autoapply_db'
+      - 'POSTGRES_PASSWORD=admin'
+      - 'POSTGRES_USER=admin'
+    ports:
+      - '5432:5432'
+    volumes:
+      - 'autoapply_postgres_data:/var/lib/postgresql/data'
+volumes:
+  autoapply_postgres_data:

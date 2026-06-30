@@ -1,0 +1,44 @@
+spring:
+  application:
+    name: AutoApply
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/autoapply_db
+    username: admin
+    password: admin
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+
+    show-sql: true
+
+  mail:
+    host: ${SMTP_HOST}
+    port: ${SMTP_PORT}
+    username: ${SMTP_USERNAME}
+    password: ${SMTP_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+
+app:
+  email:
+    from: ${APP_EMAIL_FROM}
+  cv:
+    path: ${CV_PATH}
+  scheduling:
+    scraping:
+      cron: "0 0 */6 * * *"
+    application:
+      cron: "0 0 */12 * * *"
