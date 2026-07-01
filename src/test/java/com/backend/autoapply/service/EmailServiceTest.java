@@ -3,14 +3,17 @@ package com.backend.autoapply.service;
 import com.backend.autoapply.model.ApplicationLog;
 import com.backend.autoapply.model.JobOffer;
 import com.backend.autoapply.repository.ApplicationLogRepository;
+import jakarta.mail.Session;
+import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.time.LocalDateTime;
-import java.util.List;
+
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -22,10 +25,10 @@ class EmailServiceTest {
     @Autowired
     private EmailService emailService;
 
-    @MockBean
+    @MockitoBean
     private JavaMailSender mailSender;
 
-    @MockBean
+    @MockitoBean
     private ApplicationLogRepository applicationLogRepository;
 
     @Test
@@ -34,8 +37,53 @@ class EmailServiceTest {
     }
 
     @Test
-    void testSendApplicationEmailWithMock() {
-        JobOffer jobOffer = JobOffer.builder()
+    void testSendApplicationEmailSuccessfully() {
+
+        JobOffer jobOffer = createMockJobOffer();
+
+        MimeMessage mimeMessage = new MimeMessage((Session) null);
+
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        when(applicationLogRepository.save(any(ApplicationLog.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertDoesNotThrow(() ->
+                emailService.sendApplicationEmail(jobOffer, "hr@techcorp.com"));
+
+        verify(mailSender).send(mimeMessage);
+
+        verify(applicationLogRepository).save(any(ApplicationLog.class));
+    }
+
+    @Test
+    void testShouldSaveFailedLogWhenMailSendingFails() {
+
+        JobOffer jobOffer = createMockJobOffer();
+
+        MimeMessage mimeMessage = new MimeMessage((Session) null);
+
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+
+        doThrow(new MailSendException("SMTP Error"))
+                .when(mailSender)
+                .send(any(MimeMessage.class));
+
+        when(applicationLogRepository.save(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThrows(RuntimeException.class, () ->
+                emailService.sendApplicationEmail(jobOffer, "hr@techcorp.com"));
+
+        verify(applicationLogRepository).save(
+                argThat(log ->
+                        log.getStatus() == ApplicationLog.ApplicationStatus.FAILED
+                )
+        );
+    }
+
+    private JobOffer createMockJobOffer() {
+        return  JobOffer.builder()
                 .id(1L)
                 .title("Software Engineer")
                 .company("Tech Corp")
@@ -48,14 +96,6 @@ class EmailServiceTest {
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
-
-        when(mailSender.createMimeMessage()).thenReturn(any());
-        when(applicationLogRepository.save(any(ApplicationLog.class))).thenReturn(new ApplicationLog());
-
-        assertThrows(RuntimeException.class, () -> {
-            emailService.sendApplicationEmail(jobOffer, "hr@techcorp.com");
-        });
-
-        verify(applicationLogRepository, atLeastOnce()).save(any(ApplicationLog.class));
     }
 }
+

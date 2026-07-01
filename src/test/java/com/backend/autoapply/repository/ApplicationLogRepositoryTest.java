@@ -86,7 +86,7 @@ class ApplicationLogRepositoryTest {
         applicationLogRepository.save(log1);
         applicationLogRepository.save(log2);
 
-        List<ApplicationLog> logs = applicationLogRepository.findByJobOffer(savedJob);
+        List<ApplicationLog> logs = applicationLogRepository.findByJobOfferId(savedJob.getId());
         assertEquals(2, logs.size());
     }
 }

@@ -6,7 +6,7 @@ import com.backend.autoapply.repository.ApplicationLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -31,47 +31,81 @@ public class EmailService {
 
     public void sendApplicationEmail(JobOffer jobOffer, String recipientEmail) {
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true);
-
-            helper.setFrom(fromEmail);
-            helper.setTo(recipientEmail);
-            helper.setSubject("Application for " + jobOffer.getTitle() + " at " + jobOffer.getCompany());
-
-            String emailBody = buildEmailBody(jobOffer);
-            helper.setText(emailBody, true);
-
-            File cvFile = new File(cvPath);
-            if (cvFile.exists()) {
-                helper.addAttachment("CV.pdf", cvFile);
-            } else {
-                log.warn("CV file not found at: {}", cvPath);
-            }
+            MimeMessage message = customCreateMimeMessage(jobOffer, recipientEmail);
 
             mailSender.send(message);
 
-            ApplicationLog log = ApplicationLog.builder()
-                    .jobOffer(jobOffer)
-                    .recipientEmail(recipientEmail)
-                    .status(ApplicationLog.ApplicationStatus.SENT)
-                    .build();
+            saveSuccessLog(jobOffer, recipientEmail);
 
-            applicationLogRepository.save(log);
+        } catch (MessagingException | MailException e) {
 
-
-        } catch (MessagingException e) {
             log.error("Failed to send email for job offer: {}", jobOffer.getTitle(), e);
 
-            ApplicationLog log = ApplicationLog.builder()
-                    .jobOffer(jobOffer)
-                    .recipientEmail(recipientEmail)
-                    .status(ApplicationLog.ApplicationStatus.FAILED)
-                    .errorMessage(e.getMessage())
-                    .build();
+            saveFailureLog(jobOffer, recipientEmail, e.getMessage());
 
-            applicationLogRepository.save(log);
+            //TODO create a custom exception
             throw new RuntimeException("Failed to send email", e);
         }
+    }
+
+    private MimeMessage customCreateMimeMessage(JobOffer jobOffer,
+                                                String recipientEmail) throws MessagingException
+    {
+        MimeMessage message = mailSender.createMimeMessage();
+
+        MimeMessageHelper helper = new MimeMessageHelper(message, true);
+
+        helper.setFrom(fromEmail);
+        helper.setTo(recipientEmail);
+
+        helper.setSubject(
+                "Application for "
+                        + jobOffer.getTitle()
+                        + " at "
+                        + jobOffer.getCompany());
+
+        helper.setText(buildEmailBody(jobOffer), true);
+
+        attachCv(helper);
+
+        return message;
+    }
+
+    private void attachCv(MimeMessageHelper helper) throws MessagingException
+    {
+        File cv = new File(cvPath);
+
+        if (cv.exists()) {
+            helper.addAttachment("CV.pdf", cv);
+        } else {
+            log.warn("CV file not found at {}", cvPath);
+        }
+    }
+
+    private void saveSuccessLog(JobOffer offer,
+                                String recipientEmail) {
+
+        applicationLogRepository.save(
+                ApplicationLog.builder()
+                        .jobOffer(offer)
+                        .recipientEmail(recipientEmail)
+                        .status(ApplicationLog.ApplicationStatus.SENT)
+                        .build()
+        );
+    }
+
+    private void saveFailureLog(JobOffer offer,
+                                String recipientEmail,
+                                String error) {
+
+        applicationLogRepository.save(
+                ApplicationLog.builder()
+                        .jobOffer(offer)
+                        .recipientEmail(recipientEmail)
+                        .status(ApplicationLog.ApplicationStatus.FAILED)
+                        .errorMessage(error)
+                        .build()
+        );
     }
 
     private String buildEmailBody(JobOffer jobOffer) {
